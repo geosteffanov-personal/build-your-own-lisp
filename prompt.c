@@ -1,6 +1,7 @@
 #include <stdio.h>
+#include <stdlib.h>
 
-static char input[2048];
+#include <editline/readline.h>
 
 int main(int argc, char** argv) {
     /* Print version and exit information */
@@ -10,13 +11,13 @@ int main(int argc, char** argv) {
     while(1) {
 
         /* Output prompt */
-        fputs("lispy> ", stdout);
-
-        /* Read line of input, max size 2048 */
-        fgets(input, 2048, stdin);
+        char* input = readline("lispy> ");
+        add_history(input);
 
         /* Echo back to use */
-        printf("No you're a %s", input);
+        printf("No you're a %s\n", input);
+
+        free(input);
     }
 
     return 0;
