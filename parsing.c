@@ -68,6 +68,7 @@ void lval_del(lval* v) {
 }
 
 lval* lval_add(lval* v, lval* x) {
+    printf("counts %i, %i", v->count, x->count);
     v->count++;
     v->cell = realloc(v->cell, sizeof(lval*) * v->count);
     v->cell[v->count-1] = x;
@@ -81,32 +82,33 @@ lval* lval_read_num(mpc_ast_t* t) {
 }
 
 lval* lval_read(mpc_ast_t* t) {
-    printf("reading lval");
+    printf("reading lval %s", t->tag);
     /* If symbol or number return lval of that type */
-    /*
     if (strstr(t->tag, "number")) { return lval_read_num(t); }
     if (strstr(t->tag, "symbol")) { return lval_sym(t->contents); }
-    */
 
     /* If root or s expression create an empty lval */
     lval* x = NULL;
-/*
+
     if (strcmp(t->tag, ">")) { x = lval_sexpr(); }
     if (strstr(t->tag, "sexpr")) { x = lval_sexpr(); }
+
     for (int i = 0; i < t->children_num; i++) {
         if (strcmp(t->children[i]->contents, "(") == 0) { continue; }
         if (strcmp(t->children[i]->contents, ")") == 0) { continue; }
         if (strcmp(t->children[i]->contents, "{") == 0) { continue; }
         if (strcmp(t->children[i]->contents, "}") == 0) { continue; }
         if (strcmp(t->children[i]->tag, "regex") == 0) { continue; }
-        x = lval_add(x, lval_read(t->children[i]));
+        printf("Adding lval %s to %s", t->children[i]->tag, t->children[i]->tag);
+        //x = lval_add(x, lval_read(t->children[i]));
     }
-*/
+
     return x;
 }
 
 /* Print an lval */
 void lval_print(lval* v);
+
 void lval_expr_print(lval* v, char open, char close) {
     putchar(open);
     for (int i = 0; i < v->count; i++) {
@@ -120,12 +122,15 @@ void lval_expr_print(lval* v, char open, char close) {
 }
 
 void lval_print(lval* v) {
+    printf("\n Printint %i \n", v->type);
+    /*
     switch (v->type) {
         case LVAL_NUM: printf("%li", v->num); break;
         case LVAL_ERR: printf("Error: %s", v->err); break;
         case LVAL_SYM: printf("%s", v->sym); break;
         case LVAL_SEXPR: lval_expr_print(v, '(', ')'); break;
     }
+    */
 }
 
 void lval_println(lval* v) { lval_print(v); putchar('\n'); }
