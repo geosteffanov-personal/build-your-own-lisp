@@ -1,8 +1,7 @@
-#include <stdio.h>
-#include <stdlib.h>
-
 #include <editline/readline.h>
 #include "mpc.h"
+
+enum { LVAL_NUM, LVAL_ERR, LVAL_SYM, LVAL_SEXPR };
 
 typedef struct lval {
     int type;
@@ -12,10 +11,6 @@ typedef struct lval {
     int count;
     struct lval** cell;
 } lval;
-
-enum { LVAL_NUM, LVAL_ERR, LVAL_SYM, LVAL_SEXPR };
-
-enum { LERR_DIV_ZERO, LERR_BAD_OP, LERR_BAD_NUM };
 
 /* Create a number type lisp value */
 lval* lval_num(long x) {
@@ -68,45 +63,12 @@ void lval_del(lval* v) {
 }
 
 lval* lval_add(lval* v, lval* x) {
-    printf("counts %i, %i", v->count, x->count);
     v->count++;
     v->cell = realloc(v->cell, sizeof(lval*) * v->count);
     v->cell[v->count-1] = x;
     return v;
 }
 
-lval* lval_read_num(mpc_ast_t* t) {
-    errno = 0;
-    long x = strtol(t->contents, NULL, 10);
-    return errno != ERANGE ? lval_num(x) : lval_err("invalid number");
-}
-
-lval* lval_read(mpc_ast_t* t) {
-    printf("reading lval %s", t->tag);
-    /* If symbol or number return lval of that type */
-    if (strstr(t->tag, "number")) { return lval_read_num(t); }
-    if (strstr(t->tag, "symbol")) { return lval_sym(t->contents); }
-
-    /* If root or s expression create an empty lval */
-    lval* x = NULL;
-
-    if (strcmp(t->tag, ">")) { x = lval_sexpr(); }
-    if (strstr(t->tag, "sexpr")) { x = lval_sexpr(); }
-
-    for (int i = 0; i < t->children_num; i++) {
-        if (strcmp(t->children[i]->contents, "(") == 0) { continue; }
-        if (strcmp(t->children[i]->contents, ")") == 0) { continue; }
-        if (strcmp(t->children[i]->contents, "{") == 0) { continue; }
-        if (strcmp(t->children[i]->contents, "}") == 0) { continue; }
-        if (strcmp(t->children[i]->tag, "regex") == 0) { continue; }
-        printf("Adding lval %s to %s", t->children[i]->tag, t->children[i]->tag);
-        //x = lval_add(x, lval_read(t->children[i]));
-    }
-
-    return x;
-}
-
-/* Print an lval */
 void lval_print(lval* v);
 
 void lval_expr_print(lval* v, char open, char close) {
@@ -122,53 +84,45 @@ void lval_expr_print(lval* v, char open, char close) {
 }
 
 void lval_print(lval* v) {
-    printf("\n Printint %i \n", v->type);
-    /*
     switch (v->type) {
         case LVAL_NUM: printf("%li", v->num); break;
         case LVAL_ERR: printf("Error: %s", v->err); break;
         case LVAL_SYM: printf("%s", v->sym); break;
         case LVAL_SEXPR: lval_expr_print(v, '(', ')'); break;
     }
-    */
 }
 
 void lval_println(lval* v) { lval_print(v); putchar('\n'); }
 
-/*
-lval eval_op(lval x, char* op, lval y) {
-
-    if (x.type == LVAL_ERR) { return x; }
-    if (y.type == LVAL_ERR) { return y; }
-
-    if (strcmp(op, "+") == 0) {return lval_num(x.num + y.num); }
-    if (strcmp(op, "-") == 0) {return lval_num(x.num - y.num); }
-    if (strcmp(op, "*") == 0) {return lval_num(x.num * y.num); }
-    if (strcmp(op, "/") == 0) {
-        return y.num == 0 ? lval_err(LERR_DIV_ZERO) : lval_num(x.num/y.num);
-    }
-
-    return lval_err(LERR_BAD_OP);
+lval* lval_read_num(mpc_ast_t* t) {
+    errno = 0;
+    long x = strtol(t->contents, NULL, 10);
+    return errno != ERANGE ? lval_num(x) : lval_err("invalid number");
 }
 
-lval eval(mpc_ast_t* t) {
-    if (strstr(t->tag, "number")) {
-        errno = 0;
-        long x = strtol(t->contents, NULL, 10);
-        return errno != ERANGE ?  lval_num(x) : lval_err(LERR_BAD_NUM);
+lval* lval_read(mpc_ast_t* t) {
+    /* If symbol or number return lval of that type */
+    if (strstr(t->tag, "number")) { return lval_read_num(t); }
+    if (strstr(t->tag, "symbol")) { return lval_sym(t->contents); }
+
+    /* If root or s expression create an empty lval */
+    lval* x = NULL;
+
+    if (strcmp(t->tag, ">") == 0) { x = lval_sexpr(); }
+    if (strstr(t->tag, "sexpr")) { x = lval_sexpr(); }
+
+    for (int i = 0; i < t->children_num; i++) {
+        if (strcmp(t->children[i]->contents, "(") == 0) { continue; }
+        if (strcmp(t->children[i]->contents, ")") == 0) { continue; }
+        if (strcmp(t->children[i]->contents, "{") == 0) { continue; }
+        if (strcmp(t->children[i]->contents, "}") == 0) { continue; }
+        if (strcmp(t->children[i]->tag,  "regex") == 0) { continue; }
+        x = lval_add(x, lval_read(t->children[i]));
     }
 
-    char* op = t->children[1]->contents;
-    lval x = eval(t->children[2]);
-
-    int i = 3;
-    while (strstr(t->children[i]->tag, "expr")) {
-        x = eval_op(x, op, eval(t->children[i]));
-        i++;
-    }
     return x;
 }
-*/
+
 int main(int argc, char** argv) {
     /* Create some parsers */
     mpc_parser_t* Number = mpc_new("number");
@@ -179,44 +133,29 @@ int main(int argc, char** argv) {
 
     mpca_lang(MPC_LANG_DEFAULT,
         "\
-            number : /-?[0-9]+/; \
-            symbol : '+' | '-' | '*' | '/'; \
+            number : /-?[0-9]+/ ; \
+            symbol : '+' | '-' | '*' | '/' ; \
             sexpr : '(' <expr>* ')' ; \
             expr : <number> | <symbol> | <sexpr> ; \
             lispy : /^/ <expr>* /$/ ; \
         ",
         Number, Symbol, Sexpr, Expr, Lispy);
 
-    /* Print version and exit information */
     puts("Lispy Version 0.0.0.0.1");
     puts("Press Ctrl+c to Exit\n");
 
     while(1) {
 
-        /* Output prompt */
         char* input = readline("lispy> ");
         add_history(input);
 
         /* Echo back to use */
-        printf("No you're a %s\n", input);
         mpc_result_t r;
         if (mpc_parse("<stdin>", input, Lispy, &r)) {
-            printf("read shit");
+            mpc_ast_print(r.output);
             lval* x = lval_read(r.output);
-            //lval result = eval(r.output);
             lval_println(x);
             lval_del(x);
-            /*
-            mpc_ast_print(r.output);
-            mpc_ast_t* a = r.output;
-            printf("Tag: %s\n", a->tag);
-            printf("Contents: %s\n", a->contents);
-            printf("Count: %i\n", a->children_num);
-            mpc_ast_t* c = a->children[0];
-            printf("Tag: %s\n", c->tag);
-            printf("Contents: %s\n", c->contents);
-            printf("Count: %i\n", c->children_num);
-            */
             mpc_ast_delete(r.output);
         } else {
             mpc_err_print(r.error);
