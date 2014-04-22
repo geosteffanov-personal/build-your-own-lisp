@@ -3,17 +3,36 @@
 
 #define LASSERT(args, cond, err) if (!(cond)) { lval_del(args); return lval_err(err); }
 
-enum { LVAL_NUM, LVAL_ERR, LVAL_SYM, LVAL_SEXPR, LVAL_QEXPR };
+/* Forward declarations */
 
-typedef struct lval {
+struct lval;
+struct lenv;
+typedef struct lval lval;
+typedef struct lenv lenv;
+
+/* Lisp Value */
+
+enum { LVAL_NUM, LVAL_ERR, LVAL_SYM, LVAL_FUN, LVAL_SEXPR, LVAL_QEXPR };
+
+typedef lval*(*lbuiltin)(lenv*, lval*);
+
+struct lval {
     int type;
+
     long num;
     char* err;
     char* sym;
-    int count;
-    struct lval** cell;
-} lval;
+    lbuiltin fun;
 
+    int count;
+    lval** cell;
+};
+
+struct lenv {
+    int count;
+    char** syms;
+    lval** vals;
+};
 /* Create a number type lisp value */
 lval* lval_num(long x) {
     lval* v = malloc(sizeof(lval));
@@ -40,6 +59,14 @@ lval* lval_sym(char* s) {
     return v;
 }
 
+/* Create a function type lisp value */
+lval* lval_fun(lbuiltin func) {
+    lval* v = malloc(sizeof(lval));
+    v->type = LVAL_FUN;
+    v->fun = func;
+    return v;
+}
+
 /* Create a empty lisp value */
 lval* lval_sexpr(void) {
     lval* v = malloc(sizeof(lval));
@@ -63,6 +90,7 @@ void lval_del(lval* v) {
         case LVAL_NUM: break;
         case LVAL_ERR: free(v->err); break;
         case LVAL_SYM: free(v->sym); break;
+        case LVAL_FUN: break;
         case LVAL_SEXPR:
         case LVAL_QEXPR:
             for (int i = 0; i < v->count; i++) {
@@ -101,12 +129,39 @@ void lval_print(lval* v) {
         case LVAL_NUM: printf("%li", v->num); break;
         case LVAL_ERR: printf("Error: %s", v->err); break;
         case LVAL_SYM: printf("%s", v->sym); break;
+        case LVAL_FUN: printf("<function>"); break;
         case LVAL_SEXPR: lval_expr_print(v, '(', ')'); break;
         case LVAL_QEXPR: lval_expr_print(v, '{', '}'); break;
     }
 }
 
 void lval_println(lval* v) { lval_print(v); putchar('\n'); }
+
+lval* lval_copy(lval* v) {
+    lval* x = malloc(sizeof(lval));
+    x->type = v->type;
+
+    switch (v->type) {
+
+        /* Copy numbers and functions directly */
+        case LVAL_FUN: x->fun = v->fun; break;
+        case LVAL_NUM: x->num = v->num; break;
+                       
+        case LVAL_ERR: x->err = malloc(strlen(v->err) + 1); strcpy(x->err, v->err); break;
+        case LVAL_SYM: x->sym = malloc(strlen(v->sym) + 1); strcpy(x->sym, v->sym); break;
+
+        case LVAL_SEXPR:
+        case LVAL_QEXPR:
+            x->count = v->count;
+            x->cell = malloc(sizeof(lval*) * x->count);
+            for (int i = 0; i < x->count; i++) {
+                x->cell[i] = lval_copy(v->cell[i]);
+            }
+        break;
+    }
+
+    return x;
+}
 
 lval* lval_pop(lval* v, int i) {
     /* Find the item at the given index */
@@ -128,6 +183,57 @@ lval* lval_take(lval* v, int i) {
     lval_del(v);
     return x;
 }
+
+lenv* lenv_new(void) {
+    lenv* e = malloc(sizeof(lval));
+    e->count = 0;
+    e->syms = NULL;
+    e->vals = NULL;
+    return e;
+}
+
+void lenv_del(lenv* e) {
+    for (int i = 0; i < e->count; i++) {
+        free(e->syms[i]);
+        lval_del(e->vals[i]);
+    }
+    free(e->syms);
+    free(e->vals);
+    free(e);
+}
+
+lval* lenv_get(lenv* e, lval* k) {
+
+    for (int i = 0; i < e->count; i++) {
+        /* Check for the given symbol and return a copy of the lval if found */
+        if (strcmp(e->syms[i], k->sym) == 0) { return lval_copy(e->vals[i]); }
+    }
+
+    /* Otherwise return an error */
+    return lval_err("unbound symbol");
+}
+
+void lenv_put(lenv* e, lval* k, lval* v) {
+    /* Overwrite if symbol is already in lenv */
+    for (int i = 0; i < e->count; i++) {
+        if (strcmp(e->syms[i], k->sym) == 0) {
+            lval_del(e->vals[i]);
+            e->vals[i] = lval_copy(v);
+            return;
+        }
+    }
+
+    /* If adding a new entry allocate space */
+    e->count++;
+    e->vals = realloc(e->vals, sizeof(lval*) * e->count);
+    e->syms = realloc(e->syms, sizeof(char*) * e->count);
+
+    /* Copy lval and symbol into new location */
+    e->vals[e->count-1] = lval_copy(v);
+    e->syms[e->count-1] = malloc(strlen(k->sym)+1);
+    strcpy(e->syms[e->count-1], k->sym);
+}
+
 
 lval* builtin_head(lval* a) {
     LASSERT(a, (a->count == 1), "Function 'head' passed too many arguments"); 
@@ -323,7 +429,7 @@ int main(int argc, char** argv) {
     mpca_lang(MPC_LANG_DEFAULT,
         "\
             number : /-?[0-9]+/ ; \
-            symbol : \"list\" | \"head\" | \"tail\" | \"join\" | \"eval\" | '+' | '-' | '*' | '/' ; \
+            symbol : /[a-zA-Z0-9_+\\-\\/\\\\=<>!&]+/ ; \
             sexpr : '(' <expr>* ')' ; \
             qexpr : '{' <expr>* '}' ; \
             expr : <number> | <symbol> | <sexpr> | <qexpr> ; \
