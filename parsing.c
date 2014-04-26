@@ -1,7 +1,7 @@
 #include <editline/readline.h>
 #include "mpc.h"
 
-#define LASSERT(args, cond, err) if (!(cond)) { lval_del(args); return lval_err(err); }
+#define LASSERT(args, cond, fmt, ...) if (!(cond)) { lval* err = lval_err(fmt, ##__VA_ARGS__); lval_del(args); return err; }
 
 /* Forward declarations */
 
@@ -42,11 +42,22 @@ lval* lval_num(long x) {
 }
 
 /* Create a error type lisp value */
-lval* lval_err(char* m) {
+lval* lval_err(char* fmt, ...) {
     lval* v = malloc(sizeof(lval));
     v->type = LVAL_ERR;
-    v->err = malloc(strlen(m) + 1);
-    strcpy(v->err, m);
+
+    /* Create va list and initialize it */
+    va_list va;
+    va_start(va, fmt);
+
+    /* Allocate 512 bytes of space */
+    v->err = malloc(512);
+
+    /* printf into the error string with a maximum of 511 characters */
+    vsnprintf(v->err, 511, fmat, va);
+
+    v->err = realloc(v->err, strlen(v->err)+1);
+    va_end(va);
     return v;
 }
 
@@ -210,7 +221,7 @@ lval* lenv_get(lenv* e, lval* k) {
     }
 
     /* Otherwise return an error */
-    return lval_err("unbound symbol");
+    return lval_err("unbound symbol", k->sym);
 }
 
 void lenv_put(lenv* e, lval* k, lval* v) {
