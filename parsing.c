@@ -530,12 +530,26 @@ lval* lval_call(lenv* e, lval* f, lval* a) {
 
     while(a->count) {
         
-        if ( f->formals->count == 0) {
+        if (f->formals->count == 0) {
             lval_del(a);
             return lval_err("Function passed to many arguments.  Got %i, expected %i.", given, total);
         }
 
         lval* sym = lval_pop(f->formals, 0);
+
+        if (strcmp(sym->sym, "&") == 0) {
+            if (f->formals->count != 1) {
+                lval_del(a);
+                return lval_err("function format invalid. SYmbol '&' not followed by a single symbol.");
+            }
+
+            /* Next fromal should be bound to all remaing arguments */
+            lval* nsym = lval_pop(f->formals, 0);
+            lenv_put(f->env, nsym, builtin_list(e, a));
+            lval_del(sym);
+            lval_del(nsym);
+            break;
+        }
 
         lval* val = lval_pop(a, 0);
 
@@ -546,6 +560,22 @@ lval* lval_call(lenv* e, lval* f, lval* a) {
 
     /* Arguments have been bound to environment so we can delete them */
     lval_del(a);
+    
+    if (f->formals->count > 0 && strcmp(f->formals->cell[0]->sym, "&") == 0) {
+        if (f->formals->count != 2) {
+            return lval_err("function format invalid. SYmbol '&' not followed by a single symbol.");
+        }
+
+        /* Delete '&' */
+        lval_del(lval_pop(f->formals, 0));
+
+        lval* sym = lval_pop(f->formals, 0);
+        lval* val = lval_qexpr();
+
+        lenv_put(f->env, sym, val);
+        lval_del(sym);
+        lval_del(val);
+    }
 
     /* Return evealuated value if all arguments have been bound otherwise return partial */
     if (f->formals->count == 0) {
