@@ -453,6 +453,20 @@ lval* builtin_op(lenv* e, lval* a, char* op) {
     return x;
 }
 
+lval* builtin_comp(lenv* e, lval* a, char* comp) {
+    LASSERT_NUM(comp, a, 2);
+    LASSERT_TYPE(comp, a, 0, LVAL_NUM);
+    LASSERT_TYPE(comp, a, 1, LVAL_NUM);
+
+    int r;
+    if (strcmp(comp, ">") == 0) { r = a->cell[0]->num > a->cell[1]->num; }
+    if (strcmp(comp, "<") == 0) { r = a->cell[0]->num < a->cell[1]->num; }
+    if (strcmp(comp, ">=") == 0) { r = a->cell[0]->num >= a->cell[1]->num; }
+    if (strcmp(comp, "<=") == 0) { r = a->cell[0]->num <= a->cell[1]->num; }
+    lval_del(a);
+    return lval_num(r);
+}
+
 lval* builtin_var(lenv* e, lval* a, char* func) {
     LASSERT_TYPE(func, a, 0, LVAL_QEXPR);
 
@@ -485,6 +499,11 @@ lval* builtin_add(lenv* e, lval* a) { return builtin_op(e, a, "+"); }
 lval* builtin_sub(lenv* e, lval* a) { return builtin_op(e, a, "-"); }
 lval* builtin_mul(lenv* e, lval* a) { return builtin_op(e, a, "*"); }
 lval* builtin_div(lenv* e, lval* a) { return builtin_op(e, a, "/"); }
+
+lval* builtin_gt(lenv* e, lval* a) { return builtin_comp(e, a, ">"); }
+lval* builtin_lt(lenv* e, lval* a) { return builtin_comp(e, a, "<"); }
+lval* builtin_gte(lenv* e, lval* a) { return builtin_comp(e, a, ">="); }
+lval* builtin_lte(lenv* e, lval* a) { return builtin_comp(e, a, "<="); }
         
 lval* builtin(lenv* e, lval* a, char* func) {
     if (strcmp("list", func) == 0) { return builtin_list(e, a); }
@@ -520,6 +539,10 @@ void lenv_add_builtins(lenv* e) {
     lenv_add_builtin(e, "-", builtin_sub);
     lenv_add_builtin(e, "*", builtin_mul);
     lenv_add_builtin(e, "/", builtin_div);
+    lenv_add_builtin(e, ">", builtin_gt);
+    lenv_add_builtin(e, "<", builtin_lt);
+    lenv_add_builtin(e, ">=", builtin_gte);
+    lenv_add_builtin(e, "<=", builtin_lte);
 }
 
 lval* lval_call(lenv* e, lval* f, lval* a) {
