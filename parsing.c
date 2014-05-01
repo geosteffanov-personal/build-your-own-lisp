@@ -509,6 +509,28 @@ lval* builtin_cmp(lenv* e, lval* a, char* op) {
 lval* builtin_eq(lenv* e, lval* a) { return builtin_cmp(e, a, "=="); }
 lval* builtin_ne(lenv* e, lval* a) { return builtin_cmp(e, a, "!="); }
 
+lval* builtin_if(lenv* e, lval* a) {
+    LASSERT_NUM("if", a, 3);
+    LASSERT_TYPE("if", a, 0, LVAL_NUM);
+    LASSERT_TYPE("if", a, 1, LVAL_QEXPR);
+    LASSERT_TYPE("if", a, 2, LVAL_QEXPR);
+
+    /* Change expressions to s-expressions so we can evaluate them */
+    lval* x;
+    a->cell[1]->type = LVAL_SEXPR;
+    a->cell[2]->type = LVAL_SEXPR;
+
+    /* If 1 is passed as first value evalluate first expressioin otherwise evaluate second */
+    if (a->cell[0]->num) {
+        x = lval_eval(e, lval_pop(a, 1));
+    } else {
+        x = lval_eval(e, lval_pop(a, 2));
+    }
+
+    lval_del(a);
+    return x;
+}
+
 lval* builtin_var(lenv* e, lval* a, char* func) {
     LASSERT_TYPE(func, a, 0, LVAL_QEXPR);
 
@@ -587,6 +609,7 @@ void lenv_add_builtins(lenv* e) {
     lenv_add_builtin(e, "<=", builtin_lte);
     lenv_add_builtin(e, "==", builtin_eq);
     lenv_add_builtin(e, "!=", builtin_ne);
+    lenv_add_builtin(e, "if", builtin_if);
 }
 
 lval* lval_call(lenv* e, lval* f, lval* a) {
