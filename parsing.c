@@ -625,6 +625,26 @@ lval* builtin_load(lenv* e, lval* a) {
     }
 }
 
+lval* builtin_print(lenv* e, lval* a) {
+    for (int i = 0; i < a->count; i++) {
+        lval_print(a->cell[i]); putchar(' ');
+    }
+
+    putchar('\n');
+    lval_del(a);
+
+    return lval_sexpr();
+}
+
+lval* builtin_error(lenv* e, lval* a) {
+    LASSERT_NUM("error", a, 1);
+    LASSERT_TYPE("error", a, 0, LVAL_STR);
+    lval* err = lval_err(a->cell[0]->str);
+    
+    lval_del(a);
+    return err;
+}
+
 lval* builtin_def(lenv* e, lval* a) { return builtin_var(e, a, "def"); }
 lval* builtin_put(lenv* e, lval* a) { return builtin_var(e, a, "="); }
 
@@ -638,17 +658,6 @@ lval* builtin_lt(lenv* e, lval* a) { return builtin_ord(e, a, "<"); }
 lval* builtin_gte(lenv* e, lval* a) { return builtin_ord(e, a, ">="); }
 lval* builtin_lte(lenv* e, lval* a) { return builtin_ord(e, a, "<="); }
         
-lval* builtin(lenv* e, lval* a, char* func) {
-    if (strcmp("list", func) == 0) { return builtin_list(e, a); }
-    if (strcmp("head", func) == 0) { return builtin_head(e, a); }
-    if (strcmp("tail", func) == 0) { return builtin_tail(e, a); }
-    if (strcmp("join", func) == 0) { return builtin_join(e, a); }
-    if (strcmp("eval", func) == 0) { return builtin_eval(e, a); }
-    if (strstr("+-*/", func)) { return builtin_op(e, a, func); }
-    lval_del(a);
-    return lval_err("Unkown function");
-}
-
 void lenv_add_builtin(lenv* e, char* name, lbuiltin func) {
     lval* k = lval_sym(name);
     lval* v = lval_fun(func);
@@ -679,6 +688,9 @@ void lenv_add_builtins(lenv* e) {
     lenv_add_builtin(e, "==", builtin_eq);
     lenv_add_builtin(e, "!=", builtin_ne);
     lenv_add_builtin(e, "if", builtin_if);
+    lenv_add_builtin(e, "load", builtin_load);
+    lenv_add_builtin(e, "print", builtin_print);
+    lenv_add_builtin(e, "error", builtin_error);
 }
 
 lval* lval_call(lenv* e, lval* f, lval* a) {
