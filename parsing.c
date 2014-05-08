@@ -1,3 +1,4 @@
+#include <stdlib.h>
 #include <editline/readline.h>
 #include "mpc.h"
 
@@ -361,7 +362,7 @@ lenv* lenv_copy(lenv* e) {
 
 #define LASSERT(args, cond, fmt, ...) if (!(cond)) { lval* err = lval_err(fmt, ##__VA_ARGS__); lval_del(args); return err; }
 #define LASSERT_NUM(func, args, num)\
-    LASSERT(args, (args->count == num), "Function '%s' passed too many arguments. Got %i, Expected %i.", func, a->count, num); 
+    LASSERT(args, (args->count == num), "Function '%s' passed incorrect number of arguments. Got %i, Expected %i.", func, a->count, num); 
 #define LASSERT_TYPE(func, args, index, expect) \
     LASSERT(args, (args->cell[index]->type == expect), "Function '%s' passed incorrect type for argument %i.  Got %s, expected %s", func, index, ltype_name(args->cell[index]->type), ltype_name(LVAL_QEXPR));
 
@@ -645,6 +646,19 @@ lval* builtin_error(lenv* e, lval* a) {
     return err;
 }
 
+lval* builtin_rand(lenv* e, lval* a) {
+    LASSERT_NUM("rand", a, 2);
+    LASSERT_TYPE("rand", a, 0, LVAL_NUM);
+    LASSERT_TYPE("rand", a, 1, LVAL_NUM);
+    LASSERT(a, (a->cell[1]->num > a->cell[0]->num), "Function 'rand' passed incorrect argument. Second argument must be grater than %d", a->cell[0]->num);
+
+    long min = a->cell[1]->num + 1 - a->cell[0]->num; 
+    lval* x = lval_num(rand() % min + a->cell[0]->num);
+
+    lval_del(a);
+    return x;
+}
+
 lval* builtin_def(lenv* e, lval* a) { return builtin_var(e, a, "def"); }
 lval* builtin_put(lenv* e, lval* a) { return builtin_var(e, a, "="); }
 
@@ -691,6 +705,7 @@ void lenv_add_builtins(lenv* e) {
     lenv_add_builtin(e, "load", builtin_load);
     lenv_add_builtin(e, "print", builtin_print);
     lenv_add_builtin(e, "error", builtin_error);
+    lenv_add_builtin(e, "rand", builtin_rand);
 }
 
 lval* lval_call(lenv* e, lval* f, lval* a) {
